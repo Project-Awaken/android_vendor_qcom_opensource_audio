@@ -1501,28 +1501,9 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevices(
         } else if ((config->channel_mask == 1 || config->channel_mask == 3) &&
                    (config->sample_rate == 8000 || config->sample_rate == 16000 ||
                     config->sample_rate == 32000 || config->sample_rate == 48000)) {
-            //check if VoIP output is not opened already
-            bool voip_pcm_already_in_use = false;
-            for (size_t i = 0; i < mOutputs.size(); i++) {
-                 sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-                 if (desc->mFlags == (AUDIO_OUTPUT_FLAG_VOIP_RX | AUDIO_OUTPUT_FLAG_DIRECT)) {
-                     //close voip output if currently open by the same client with different device
-                     if (desc->mDirectClientSession == session &&
-                         desc->devices() != devices) {
-                         closeOutput(desc->mIoHandle);
-                     } else {
-                         voip_pcm_already_in_use = true;
-                         ALOGD("VoIP PCM already in use");
-                     }
-                     break;
-                 }
-            }
-
-            if (!voip_pcm_already_in_use) {
-                *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_VOIP_RX |
+            *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_VOIP_RX |
                                                AUDIO_OUTPUT_FLAG_DIRECT);
-                ALOGV("Set VoIP and Direct output flags for PCM format");
-            }
+            ALOGV("Set VoIP and Direct output flags for PCM format");
         }
     } /* voip flag override block end */
 
@@ -1701,7 +1682,8 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevices(
         // prevent direct pcm for non-music stream blindly if direct pcm already in use
         // for other music stream concurrency is handled after checking direct ouput usage
         // and checking client
-        if (direct_pcm_already_in_use == true && stream != AUDIO_STREAM_MUSIC) {
+        if (direct_pcm_already_in_use == true && stream != AUDIO_STREAM_MUSIC &&
+            !(*flags & AUDIO_OUTPUT_FLAG_VOIP_RX)) {
             ALOGD("disabling offload for non music stream as direct pcm is already in use");
             *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_NONE);
         }
@@ -1810,7 +1792,6 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevices(
                      outputDesc->mDirectClientSession, session);
                      goto non_direct_output;
                 }
-                closeOutput(outputDesc->mIoHandle);
             }
         }
         if (!profile->canOpenNewIo()) {
